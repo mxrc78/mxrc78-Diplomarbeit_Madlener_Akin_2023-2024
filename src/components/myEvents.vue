@@ -1,30 +1,39 @@
 <template>
   <form @submit.prevent>
-    <button class="create_Event" v-if="isAdmin" @click="createEvent">
-      Event erstellen
+    <button @click="toggleCreateEvent" class="create_Event">
       <span class="button-icon">+</span>
+      <span class="button-text">Event hinzufügen</span>
       <span class="button-underline"></span>
     </button>
 
     <div v-if="showCreateEvent">
-      <input class="eventText" type="text" placeholder="Beschreibung" />
+      <input v-model="description" type="text" class="eventText" placeholder="Beschreibung" />
       <div class="dateText">Startdatum:</div>
-      <input class="eventText" type="date" v-model="startDate" placeholder="Datum" />
-
+      <input v-model="startDate" type="date" class="eventText" />
       <div class="dateText">Enddatum:</div>
-      <input class="eventText" type="date" v-model="endDate" placeholder="Datum" />
-
-      <label for="pdfInput" class="fileButton"> PDF Auswählen </label>
-      <input class="eventText" type="file" id="pdfInput" accept=".pdf" @change="handlePDFUpload" style="display: none" />
-      <span v-if="selectedPDF">{{ selectedPDF.name }}</span>
+      <input v-model="endDate" type="date" class="eventText" />
+      <input type="file" class="fileButton" @change="handleFileUpload" />
+      <button @click="addEvent" class="event-create-button">Event erstellen</button>
     </div>
+
+    <div class="events-list">
+      <div v-for="event in events" :key="event.id" class="event-item">
+        <h3>{{ event.event_beschreibung }}</h3>
+        <p>Startdatum: {{ event.event_startdatum }}</p>
+        <p>Enddatum: {{ event.event_enddatum }}</p>
+        <a :href="getPdfUrl(event.event_pdf)" target="_blank">PDF anzeigen</a>
+      </div>
+      </div>
+
   </form>
 </template>
 
 <script>
 import authService from "./authService.js";
+import axios from 'axios';
 
 export default {
+   // eslint-disable-next-line vue/multi-word-component-names
   name: "myEvents",
   data() {
     return {
@@ -34,11 +43,17 @@ export default {
       endDate: "",
       userInfo: null,
       isAdmin: '',
+      events: [],
+      description: '',
     };
   },
   async mounted() {
+    await this.fetchEvents();
     this.checkUserRoles();
+    
   },
+
+  
   methods: {
     async checkUserRoles() {
       this.isAdmin = await authService.checkIfUserHasRole("EventCreator");
@@ -54,21 +69,72 @@ export default {
         this.showCreateEvent = true;
       }
     },
-    // Weitere Methoden...
+
+    handleFileUpload(event) {
+      this.selectedPdf = event.target.files[0];
+    },
+    async addEvent() {
+      const formData = new FormData();
+      formData.append('description', this.description);
+      formData.append('startDate', this.startDate);
+      formData.append('endDate', this.endDate);
+      formData.append('pdf', this.selectedPdf);
+
+      try {
+        await axios.post('http://localhost:8080/api/events', formData, {
+          headers: {
+            'Content-Type': 'multipart/form-data',
+          },
+        });
+        alert('Event erfolgreich hinzugefügt!');
+        this.resetForm();
+        await this.fetchEvents();
+      } catch (error) {
+        console.error('Fehler beim Hinzufügen des Events:', error);
+        alert('Fehler beim Hinzufügen des Events.');
+      }
+    },
+    async fetchEvents() {
+      try {
+        const response = await axios.get('http://localhost:8080/api/events');
+        this.events = response.data;
+      } catch (error) {
+        console.error('Fehler beim Laden der Events:', error);
+      }
+    },
+    resetForm() {
+      this.description = '';
+      this.startDate = '';
+      this.endDate = '';
+      this.selectedPdf = null;
+    },
+    getPdfUrl(pdfPath) {
+  // Überprüfe, ob pdfPath null oder undefined ist
+  if (!pdfPath) {
+    // Gib einen leeren String oder einen Platzhalter-Pfad zurück, wenn kein PDF vorhanden ist
+    return '';
+  }
+  // Entferne doppelte '/uploads/', falls vorhanden
+  const normalizedPath = pdfPath.replace(/^uploads\/uploads\//, 'uploads/');
+  return `http://localhost:8080/${normalizedPath}`;
+},
+
+
+    toggleCreateEvent() {
+      this.showCreateEvent = !this.showCreateEvent;
+    },
   },
+    // Weitere Methoden...
 };
 </script>
 
 <style scoped>
 .button-icon {
   position: absolute;
-
+  left: 0;
   color: #ffdb00;
-  margin-left: -160px;
+  margin-right: 5px;
 }
-
-
-
 .fileButton {
   position: relative;
   z-index: 2;
@@ -78,14 +144,15 @@ export default {
   border: none;
   color: #428f4a;
   height: 50px;
-  width: 200px;
-  font-size: 18px;
+  width: 250px;
+  font-size: 15px;
   border-radius: 10px;
   display: block;
   text-align: center;
   line-height: 50px;
   cursor: pointer;
   font-family: "Brandon Grotesque Black";
+
 }
 
 .button-text {
@@ -105,8 +172,6 @@ export default {
 
 button {
   position: relative;
-  margin-left: 100px;
-  margin-top: 500px;
 }
 
 .eventText {
@@ -118,7 +183,7 @@ button {
   border: none;
   color: #428f4a;
   height: 50px;
-  width: 200px;
+  width: 250px;
   font-size: 18px;
   border-radius: 10px;
   display: block;
@@ -130,9 +195,10 @@ button {
 }
 
 .eventText[type="date"] {
-  width: 200px;
+  width: 250px;
   margin-top: 30px;
 }
+
 
 ::placeholder {
   color: #428f4a;
@@ -154,6 +220,7 @@ button:hover .button-underline {
   width: 100%;
 }
 
+
 .button-underline {
   position: absolute;
   height: 2px;
@@ -172,7 +239,7 @@ button:hover .button-underline {
   background-color: white;
   font-size: 24px;
   margin-top: 100px;
-  justify-content: left;
+  justify-content:left;
   position: relative;
 }
 
@@ -192,7 +259,7 @@ button:hover .button-underline {
 }
 
 .event {
-  margin-top: 140px; /* Adjusted margin-top value */
+  margin-top: 140px;
   margin-left: 820px;
   position: absolute;
   width: 100%;
@@ -200,11 +267,36 @@ button:hover .button-underline {
   font-family: "Brandon Grotesque Black";
   font-size: 20px;
 }
-.dateText {
-  margin-top: 2vw; /* Abstand über und unter dem Datum-Eingabefeld anpassen */
+  .dateText {
+    margin-top: 2vw;
+    color: #428f4a;
+    font-size: 1vw;
+    font-weight: bold;
+    margin-left: 550px;
+}
+
+.event-create-button {
+  margin-top: 30px; 
+  background-color: #ffdb00; 
   color: #428f4a;
-  font-size: 1vw;
-  font-weight: bold;
+  height: 50px;
+  width: 250px;
+  font-size: 18px;
+  border-radius: 10px;
+  border: none;
+  display: block;
   margin-left: 550px;
+  font-family: "Brandon Grotesque Black";
+  cursor: pointer;
+}
+
+.events-list {
+  margin-top: 20px;
+}
+
+.event-item {
+  border: 1px solid #ccc;
+  padding: 10px;
+  margin-bottom: 10px;
 }
 </style>
