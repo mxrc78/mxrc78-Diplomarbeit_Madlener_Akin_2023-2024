@@ -6,14 +6,15 @@
       <span class="button-underline"></span>
     </button>
 
-    <div v-if="showCreateEvent">
+    <div v-if="showCreateEvent || updateMode">
       <input v-model="description" type="text" class="eventText" placeholder="Beschreibung" />
       <div class="dateText">Startdatum:</div>
       <input v-model="startDate" type="date" class="eventText" />
       <div class="dateText">Enddatum:</div>
       <input v-model="endDate" type="date" class="eventText" />
       <input type="file" class="fileButton" @change="handleFileUpload" />
-      <button @click="addEvent" class="event-create-button">Event erstellen</button>
+      <button v-if="!updateMode" @click="addEvent" class="event-create-button">Event erstellen</button>
+      <button v-if="updateMode" @click="updateCurrentEvent" class="event-create-button">Event bearbeiten</button>
     </div>
 
     <div class="events-list">
@@ -22,9 +23,10 @@
         <p>Startdatum: {{ event.event_startdatum }}</p>
         <p>Enddatum: {{ event.event_enddatum }}</p>
         <a :href="getPdfUrl(event.event_pdf)" target="_blank">PDF anzeigen</a>
+        <button @click="updateEvent(event)" class="edit-event-button">Bearbeiten</button>
+        <button @click="deleteEvent(event.id)" class="delete-event-button">Löschen</button>
       </div>
-      </div>
-
+    </div>
   </form>
 </template>
 
@@ -45,6 +47,8 @@ export default {
       isAdmin: '',
       events: [],
       description: '',
+      updateMode: false,
+      eventIdToUpdate: null,
     };
   },
   async mounted() {
@@ -94,6 +98,42 @@ export default {
         alert('Fehler beim Hinzufügen des Events.');
       }
     },
+
+    updateEvent(event) {
+      // Setze die Felder des Formulars mit den aktuellen Event-Daten
+      this.description = event.event_beschreibung;
+      this.startDate = event.event_startdatum;
+      this.endDate = event.event_enddatum;
+      // Setze den Modus für das Hinzufügen eines neuen Events auf false
+      this.updateMode = true;
+      this.eventIdToUpdate = event.id;
+      this.showCreateEvent = true;
+    },
+
+    async updateCurrentEvent() {
+      // Logik zum Aktualisieren des aktuellen Events hier einfügen
+      const formData = new FormData();
+      formData.append('description', this.description);
+      formData.append('startDate', this.startDate);
+      formData.append('endDate', this.endDate);
+      formData.append('pdf', this.selectedPdf);
+
+      try {
+        await axios.put(`http://localhost:8080/api/events/${this.eventIdToUpdate}`, formData, {
+          headers: {
+            'Content-Type': 'multipart/form-data',
+          },
+        });
+        alert('Event erfolgreich aktualisiert!');
+        this.resetForm();
+        this.updateMode = false; // Zurücksetzen auf den Erstellungsmodus
+        await this.fetchEvents();
+      } catch (error) {
+        console.error('Fehler beim Aktualisieren des Events:', error);
+        alert('Fehler beim Aktualisieren des Events.');
+      }
+    },
+    
     async fetchEvents() {
       try {
         const response = await axios.get('http://localhost:8080/api/events');
@@ -258,6 +298,13 @@ button:hover .button-underline {
   width: 100%;
 }
 
+.button-text{
+  margin-left:40px;
+}
+
+.button-icon{
+  margin-left:40px;
+}
 .event {
   margin-top: 140px;
   margin-left: 820px;
